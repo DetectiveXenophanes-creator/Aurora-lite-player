@@ -1,0 +1,53 @@
+name: Build Aurora Lite
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: aurora-lite-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # Works both when the project is at the root of the repo and when you upload aurora-lite.zip instead
+      - name: Find the project
+        run: |
+          if [ -f aurora-lite.zip ]; then
+            mkdir -p aurora-lite-src
+            unzip -oq aurora-lite.zip -d aurora-lite-src
+            echo "PROJECT_DIR=aurora-lite-src" >> "$GITHUB_ENV"
+          else
+            echo "PROJECT_DIR=." >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+          build-root-directory: ${{ env.PROJECT_DIR }}
+
+      - name: Build Aurora Lite APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurora-lite-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
